@@ -70,6 +70,14 @@
             background: #fff;
         }
 
+        input:disabled {
+            background-color: #f0f0f0;
+            /* Light Gray */
+            color: #666;
+            cursor: not-allowed;
+            border-color: #ccc;
+        }
+
         button {
             width: 100%;
             padding: 12px;
@@ -198,9 +206,25 @@
         </div>
     </div>
 
-    <div class="container hidden" id="dataBox">
+    <div class="container hidden" id="dataBox" style="position:relative;">
+        <button onclick="logout()"
+            style="position:absolute; top:20px; right:20px; width:auto; background:#dc3545; color:white; padding:5px 15px; font-size:14px; border-radius:20px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">ออกจากระบบ</button>
         <h1>ข้อมูลส่วนตัว</h1>
         <div id="displayArea"></div>
+
+        <!-- Phone Number Section -->
+        <div id="phoneInputs" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+            <h3 style="color:#d81b60;">ข้อมูลติดต่อ (จำเป็นต้องระบุ)</h3>
+
+            <label style="font-weight:bold;">เบอร์โทรศัพท์นักเรียน <span style="color:red;">*</span></label>
+            <input type="tel" id="studentPhone" placeholder="กรอกเบอร์โทรศัพท์นักเรียน (10 หลัก)" maxlength="10"
+                oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+
+            <label style="font-weight:bold;">เบอร์โทรศัพท์ผู้ปกครอง <span style="color:red;">*</span></label>
+            <input type="tel" id="guardianPhone" placeholder="กรอกเบอร์โทรศัพท์ผู้ปกครอง (10 หลัก)" maxlength="10"
+                oninput="this.value = this.value.replace(/[^0-9]/g, '');" required>
+        </div>
+
         <div id="mainBtns">
             <button class="btn-confirm" onclick="action('confirm')">ข้อมูลถูกต้อง (ยืนยัน)</button>
             <button class="btn-edit-mode" onclick="toggleEdit(true)">ข้อมูลไม่ถูกต้อง (แก้ไข)</button>
@@ -213,6 +237,32 @@
             <button onclick="toggleEdit(false)">ยกเลิก</button>
         </div>
         <div id="actionMsg" class="status"></div>
+    </div>
+
+    <!-- Post-Login Instruction Modal -->
+    <div id="instructionModal" class="hidden"
+        style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; justify-content:center; align-items:center; display:none;">
+        <div
+            style="background:white; padding:30px; border-radius:15px; width:90%; max-width:600px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <h2 style="color:#d81b60; margin-bottom:20px;">คำชี้แจงสำคัญ</h2>
+            <div style="font-size:18px; line-height:1.6; color:#333; margin-bottom:25px;">
+                โปรดตรวจสอบตัวสะกด ชื่อ-นามสกุล และข้อมูลอื่นๆ ให้ถูกต้องสมบูรณ์ที่สุด<br>
+                เพื่อนำไปใช้ในการจัดทำเอกสารจบการศึกษา (ปพ.1)
+
+                <div
+                    style="margin-top:20px; padding:15px; background:#ffebee; border:2px solid #ffcdd2; border-radius:10px;">
+                    <strong style="color:red; font-size:20px; display:block; margin-bottom:5px;">ข้อควรระวัง!</strong>
+                    <span style="color:#d32f2f; font-weight:bold;">
+                        ข้อมูล ชื่อ-นามสกุล ของบิดาและมารดา<br>
+                        "ต้องเป็นผู้ให้กำเนิดตามสูติบัตรเท่านั้น"
+                    </span>
+                </div>
+            </div>
+            <button onclick="closeInstructionModal()"
+                style="background:#28a745; color:white; padding:12px 30px; font-size:16px; border-radius:30px; border:none; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                รับทราบและตรวจสอบข้อมูล
+            </button>
+        </div>
     </div>
 
     <script>
@@ -299,6 +349,14 @@
             document.getElementById('listModal').style.display = 'none';
         }
 
+        function closeInstructionModal() {
+            const modal = document.getElementById('instructionModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            // Show data box after closing instruction
+            document.getElementById('dataBox').classList.remove('hidden');
+        }
+
         async function login() {
             const u = document.getElementById('userInput').value;
             const p = document.getElementById('passInput').value;
@@ -311,10 +369,67 @@
                 if (data.error) throw new Error(data.error);
 
                 studentData = data;
+
+                // Save Session
+                localStorage.setItem('studentData', JSON.stringify(studentData));
+
                 renderData();
                 document.getElementById('loginBox').classList.add('hidden');
-                document.getElementById('dataBox').classList.remove('hidden');
+                document.getElementById('summaryBox').classList.add('hidden'); // Hide Summary
+
+                // Show Instruction Modal instead of direct Data Box
+                const instModal = document.getElementById('instructionModal');
+                instModal.style.display = 'flex';
+                instModal.classList.remove('hidden');
+
+                // Check status before showing
+                checkStatusAndSetupUI();
             } catch (e) { msg.innerText = e.message; msg.style.color = 'red'; }
+        }
+
+        function checkStatusAndSetupUI() {
+            const hasStatus = studentData.status && String(studentData.status).trim() !== "";
+
+            if (hasStatus) {
+                // Already Verified/Edited
+                document.getElementById('mainBtns').classList.add('hidden');
+
+                // Disable phone inputs
+                document.getElementById('studentPhone').disabled = true;
+                document.getElementById('guardianPhone').disabled = true;
+
+                // Show Status Message
+                const msgDiv = document.getElementById('actionMsg');
+                let statusText = `ท่านได้ทำรายการเรียบร้อยแล้ว (${studentData.status})`;
+
+                // Add Re-edit button (Subtle Style)
+                statusText += `<br><br><small onclick="enableReEdit()" style="color:#bbb; font-size:11px; cursor:pointer; text-decoration:underline;">ขอแก้ไขข้อมูลอีกครั้ง</small>`;
+
+                msgDiv.innerHTML = statusText;
+                msgDiv.style.color = "green";
+                msgDiv.style.textAlign = "center";
+                msgDiv.style.fontWeight = "bold";
+            } else {
+                // Not yet verified
+                document.getElementById('mainBtns').classList.remove('hidden');
+                document.getElementById('actionMsg').innerHTML = "";
+            }
+        }
+
+        function enableReEdit() {
+            if (!confirm("คุณต้องการแก้ไขข้อมูลอีกครั้งใช่หรือไม่?")) return;
+
+            // Enable buttons and inputs
+            // Instead of showing mainBtns (Green/Yellow), go straight to Edit Mode
+            toggleEdit(true);
+
+            document.getElementById('studentPhone').disabled = false;
+            document.getElementById('guardianPhone').disabled = false;
+
+            // Clear status message
+            document.getElementById('actionMsg').innerHTML = "";
+            document.getElementById('actionMsg').innerText = "กรุณาแก้ไขข้อมูลให้ถูกต้อง แล้วกดบันทึก";
+            document.getElementById('actionMsg').style.color = "#d81b60";
         }
 
         function renderData() {
@@ -322,20 +437,90 @@
             const form = document.getElementById('editForm');
             area.innerHTML = ''; form.innerHTML = '';
 
+            let areaHtml = "";
+
             FIELDS.forEach(f => {
-                area.innerHTML += `<div class="data-item"><span class="label">${f.label}:</span> <span>${studentData[f.key] || '-'}</span></div>`;
+                let displayValue = studentData[f.key] || '-';
+                let editHtml = "";
+
+                // Check for requested edits (from Col Z+)
+                // Only show if different and not empty
+                if (studentData["edit_" + f.key]) {
+                    let editVal = studentData["edit_" + f.key];
+
+                    // Compare raw string value with original value (since backend now returns display values)
+                    if (String(editVal).trim() !== String(studentData[f.key] || "").trim()) {
+                        editHtml = `<br><span style="color:red; font-size:0.9em;">(ขอแก้ไขเป็น: ${editVal})</span>`;
+                    }
+                }
+
+                // Add Red Frame Start for Parent Info
+                if (f.key === 'fatherPrefix') {
+                    areaHtml += `<div style="border: 2px solid red; padding: 15px; border-radius: 8px; margin: 20px 0; background-color: #fff5f5;">
+                                    <h3 style="color:#d32f2f; margin-top:0; border-bottom:1px solid #ffcdd2; padding-bottom:10px;">ข้อมูลบิดา-มารดา <span style="color:red; font-size:0.6em;">*ตามสูติบัตร</span></h3>`;
+                }
+
+                areaHtml += `<div class="data-item">
+                                        <span class="label">${f.label}:</span> 
+                                        <div style="text-align:right;">
+                                            <span>${displayValue}</span>
+                                            ${editHtml}
+                                        </div>
+                                   </div>`;
+
+                // Add Red Frame End after Mother Info
+                if (f.key === 'motherSurname') {
+                    areaHtml += `</div>`;
+                }
+
                 if (f.edit) {
-                    form.innerHTML += `<label>${f.label}</label><input type="text" name="${f.key}" value="${studentData[f.key] || ''}">`;
+                    let val = studentData["edit_" + f.key] || studentData[f.key] || '';
+                    form.innerHTML += `<label>${f.label}</label><input type="text" name="${f.key}" value="${val}">`;
                 }
             });
+
+            area.innerHTML = areaHtml;
+            // Pre-fill phone numbers if available in studentData (assuming backend returns them)
+            if (studentData.studentPhone) document.getElementById('studentPhone').value = studentData.studentPhone;
+            if (studentData.guardianPhone) document.getElementById('guardianPhone').value = studentData.guardianPhone;
         }
 
         function toggleEdit(show) {
-            document.getElementById('editArea').classList.toggle('hidden', !show);
-            document.getElementById('mainBtns').classList.toggle('hidden', show);
+            const editArea = document.getElementById('editArea');
+            const mainBtns = document.getElementById('mainBtns');
+
+            if (show) {
+                editArea.classList.remove('hidden');
+                mainBtns.classList.add('hidden');
+            } else {
+                editArea.classList.add('hidden');
+                // Check if already verified/pending
+                if (studentData.status) {
+                    mainBtns.classList.add('hidden');
+                    checkStatusAndSetupUI(); // Re-show status message
+                } else {
+                    mainBtns.classList.remove('hidden');
+                }
+            }
         }
 
         async function action(type) {
+            // Validate Phone Numbers
+            const sPhone = document.getElementById('studentPhone').value.trim();
+            const gPhone = document.getElementById('guardianPhone').value.trim();
+
+            if (!sPhone || !gPhone || sPhone.length !== 10 || gPhone.length !== 10) {
+                alert("กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก (เฉพาะตัวเลข)");
+                // Highlight inputs
+                if (!sPhone || sPhone.length !== 10) document.getElementById('studentPhone').style.border = "2px solid red";
+                if (!gPhone || gPhone.length !== 10) document.getElementById('guardianPhone').style.border = "2px solid red";
+                return;
+            } else {
+                // Reset styles
+                document.getElementById('studentPhone').style.border = "1px solid #ddd";
+                document.getElementById('guardianPhone').style.border = "1px solid #ddd";
+            }
+
             if (!confirm('ยืนยันการทำรายการ?')) return;
             const msg = document.getElementById('actionMsg');
             msg.innerText = "กำลังบันทึก...";
@@ -347,6 +532,10 @@
             formData.append('user', studentData.user);
             formData.append('password', studentData.password);
 
+            // Append Phone Numbers
+            formData.append('studentPhone', sPhone);
+            formData.append('guardianPhone', gPhone);
+
             if (type === 'edit') {
                 const inputs = document.getElementById('editForm').elements;
                 for (let i = 0; i < inputs.length; i++) {
@@ -357,18 +546,79 @@
             try {
                 const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
                 const result = await res.text();
+                // Check for success message from backend
                 if (result.includes("Updated") || result.includes("Success")) {
                     alert("ดำเนินการสำเร็จ");
                     // Hide buttons to prevent re-submission
                     document.getElementById('mainBtns').classList.add('hidden');
                     document.getElementById('editArea').classList.add('hidden');
 
+                    // Disable phone inputs
+                    document.getElementById('studentPhone').disabled = true;
+                    document.getElementById('guardianPhone').disabled = true;
+
                     // Show success message permanently
-                    msg.innerText = "บันทึกข้อมูลเรียบร้อยแล้ว (ไม่สามารถแก้ไขได้อีก)";
+                    msg.innerText = "บันทึกข้อมูลเรียบร้อยแล้ว";
                     msg.style.color = "green";
+
+                    // Update Local Data immediately for UI refresh
+                    studentData.status = (type === 'edit') ? "ขอแก้ไข - ล่าสุด" : "ยืนยันแล้ว - ล่าสุด";
+                    studentData.studentPhone = sPhone;
+                    studentData.guardianPhone = gPhone;
+
+                    if (type === 'edit') {
+                        const inputs = document.getElementById('editForm').elements;
+                        for (let i = 0; i < inputs.length; i++) {
+                            if (inputs[i].name) {
+                                studentData["edit_" + inputs[i].name] = inputs[i].value;
+                            }
+                        }
+                    }
+
+                    // Update Storage
+                    localStorage.setItem('studentData', JSON.stringify(studentData));
+
+                    // Re-render data to show red parenthesis immediately
+                    renderData();
+
+                    // Refresh status logic to show 'Re-edit' button immediately
+                    setTimeout(() => checkStatusAndSetupUI(), 500);
                 } else throw new Error(result);
             } catch (e) { msg.innerText = e.message; msg.style.color = 'red'; }
         }
+
+        function logout() {
+            if (confirm("ต้องการออกจากระบบ?")) {
+                localStorage.removeItem('studentData');
+                location.reload();
+            }
+        }
+
+        function checkSession() {
+            const stored = localStorage.getItem('studentData');
+            if (stored) {
+                try {
+                    studentData = JSON.parse(stored);
+                    document.getElementById('loginBox').classList.add('hidden');
+                    document.getElementById('summaryBox').classList.add('hidden'); // Hide Summary
+                    document.getElementById('dataBox').classList.remove('hidden');
+
+                    renderData();
+                    checkStatusAndSetupUI();
+                } catch (e) {
+                    localStorage.removeItem('studentData');
+                }
+            }
+        }
+
+        // Run on load
+        window.onload = function () {
+            checkSession();
+            // If not logged in (loginBox is visible), fetch summary
+            if (!localStorage.getItem('studentData')) {
+                fetchSummary();
+            }
+        };
     </script>
 </body>
 
